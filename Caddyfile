@@ -1,0 +1,29 @@
+# Site snippet for the VPS's central Caddy (vps-caddy repo, not run from here).
+# update-frontend.sh copies this file into its sites/ dir (and frontend-dist/ into
+# its roots/ dir) whenever CADDY_DIR is set in .env - see that script. Caddy runs
+# in its own container, so it can only see real files under its own bind-mounted
+# directory tree, not symlinks pointing elsewhere on the host - hence copying
+# instead of symlinking.
+#
+# Requires: the central Caddy container is attached to the external `reverse-proxy`
+# network (see compose.yaml) so it can resolve `finance-backend` by name.
+#
+# TLS: self-signed (no ACME/Let's Encrypt) - Cloudflare sits in front and doesn't
+# validate this cert's trust chain, just that a TLS handshake happens at all.
+# Requires a Cloudflare Configuration/Page Rule scoping this hostname to "Full"
+# mode specifically - the zone-wide default should NOT be Full (strict), or
+# Cloudflare will reject this self-signed cert.
+
+finance.sarto.dev {
+	tls internal
+
+	handle /api/* {
+		reverse_proxy finance-backend:8000
+	}
+
+	handle {
+		root * /srv/roots/finance
+		try_files {path} /index.html
+		file_server
+	}
+}

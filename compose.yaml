@@ -1,0 +1,49 @@
+services:
+  backend:
+    image: ghcr.io/sartoriccardo/finance-back:${BACKEND_IMAGE_TAG:-latest}
+    # stable, globally-unique name: the VPS's central Caddy reaches this container
+    # by name on the reverse-proxy network, and other projects will share that
+    # network too, so a generic name like "backend" would eventually collide
+    container_name: finance-backend
+    restart: unless-stopped
+    env_file: secrets/.env.api
+    volumes:
+      - backend_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - finance
+      - reverse-proxy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    # internal-only creds: db publishes no port and isn't on reverse-proxy, so
+    # nothing outside this compose network can reach it
+    environment:
+      POSTGRES_USER: pf
+      POSTGRES_PASSWORD: pf
+      POSTGRES_DB: pf
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pf"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - finance
+
+networks:
+  # internal-only: how the backend reaches the db without going through the
+  # reverse proxy
+  finance:
+  # the VPS's single central Caddy instance lives outside this repo - this network
+  # is how it reaches finance-backend directly (see Caddyfile)
+  reverse-proxy:
+    external: true
+
+volumes:
+  backend_data:
+  pg_data:
